@@ -3,5 +3,17 @@
       "api/**/*.rs": {
         "runtime": "vercel-rust@4.0.6"
       }
-    }
+    },
+    "rewrites": [
+      {
+        "source": "/riptar/:name*",
+        "destination": "/api/riptar/:name*"
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/riptar",
+        "destination": "/api/riptar/riptar"
+      }
+    ]
   }
