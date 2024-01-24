@@ -16,7 +16,7 @@ pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
         "<svg
         xmlns=\"http://www.w3.org/2000/svg\"
         version=\"1.1\"
-        viewBox=\"0 0 {size} {size}\"
+        viewBox=\"0 0 48 48\"
         width=\"{size}\"
         height=\"{size}\"
     >
@@ -33,7 +33,7 @@ pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
         >
             <feTurbulence
                 type=\"fractalNoise\"
-                baseFrequency=\"0.04\"
+                baseFrequency=\"0.05\"
                 numOctaves=\"2\"
                 seed=\"{hash}\"
                 stitchTiles=\"stitch\"
@@ -59,10 +59,10 @@ pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
             </feSpecularLighting>
         </filter>
         </defs>
-        <rect width=\"{size}\" height=\"{size}\" fill=\"{color}\"></rect>
+        <rect width=\"48\" height=\"48\" fill=\"{color}\"></rect>
         <rect
-            width=\"{size}\"
-            height=\"{size}\"
+            width=\"48\"
+            height=\"48\"
             fill=\"#ffffff\"
             filter=\"url(#nnnoise-filter)\"
         ></rect>
