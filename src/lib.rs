@@ -1,10 +1,10 @@
+use image::{imageops::FilterType, GrayImage, ImageFormat, Luma};
+use reqwest::blocking::get;
 use resvg::{
     tiny_skia::Pixmap,
     usvg::{self, Options, Transform, TreeParsing},
     Tree,
 };
-use reqwest::blocking::get;
-use image::{GrayImage, ImageFormat, Luma};
 use std::io::Cursor;
 
 pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
@@ -87,12 +87,21 @@ pub fn djb2(str: &str) -> u32 {
         .fold(5381, |hash, c| ((hash << 5) + hash) + c)
 }
 
-pub fn dither(url: &String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn dither(
+    url: &String,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let response = get(url)?;
     let bytes = response.bytes()?;
-    let img = image::load_from_memory(&bytes)?.to_luma8();
+    let mut img = image::load_from_memory(&bytes)?;
 
-    let mut dithered = img.clone();
+    if let (Some(w), Some(h)) = (width, height) {
+        img = img.resize(w, h, FilterType::Triangle);
+    }
+
+    let grayscale = img.to_luma8();
+    let mut dithered = grayscale.clone();
     floyd_steinberg_dither(&mut dithered);
 
     let mut buf = Cursor::new(Vec::new());
@@ -111,12 +120,7 @@ fn floyd_steinberg_dither(img: &mut GrayImage) {
 
             img.put_pixel(x, y, Luma([new_pixel]));
 
-            for (dx, dy, weight) in [
-                (1, 0, 7),
-                (-1, 1, 3),
-                (0, 1, 5),
-                (1, 1, 1),
-            ] {
+            for (dx, dy, weight) in [(1, 0, 7), (-1, 1, 3), (0, 1, 5), (1, 1, 1)] {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 if nx >= 0 && ny >= 0 && nx < width as i32 && ny < height as i32 {

@@ -19,9 +19,11 @@ pub async fn handler(req: Request) -> Result<Response<Body>, Error> {
     let parsed_url = Url::parse(&req.uri().to_string()).unwrap();
     let hash_query: HashMap<String, String> = parsed_url.query_pairs().into_owned().collect();
     let url_key = hash_query.get("url");
+    let height_key = hash_query.get("height").and_then(|s| s.parse::<u32>().ok());
+    let width_key = hash_query.get("width").and_then(|s| s.parse::<u32>().ok());
 
     if let Some(url) = url_key {
-        if let Ok(dithered) = dither(url) {
+        if let Ok(dithered) = dither(url, height_key, width_key) {
             return Ok(Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "image/png")
