@@ -1,30 +1,50 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta name="title" content="riptar">
-    <meta name="description" content="a tiny service for generating abstract random avatars in rust.">
-    <meta name="keywords" content="avatar generator, dev tools, ripply avatar">
-    <meta name="robots" content="index, nofollow">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="language" content="English">
+    <meta name="title" content="riptar" />
+    <meta
+      name="description"
+      content="a tiny service for generating abstract random avatars in rust."
+    />
+    <meta
+      name="keywords"
+      content="avatar generator, dev tools, ripply avatar"
+    />
+    <meta name="robots" content="index, nofollow" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="language" content="English" />
     <meta name="color-scheme" content="dark" />
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://riptar.gregermendle.com" />
     <meta property="og:title" content="riptar" />
-    <meta property="og:description" content="a tiny service for generating abstract random avatars in rust." />
-    <meta property="og:image" content="https://riptar.gregermendle.com/preview.png" />
+    <meta
+      property="og:description"
+      content="a tiny service for generating abstract random avatars in rust."
+    />
+    <meta
+      property="og:image"
+      content="https://riptar.gregermendle.com/preview.png"
+    />
+
+    <meta name="color-scheme" content="dark" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://riptar.gregermendle.com" />
     <meta property="twitter:title" content="riptar" />
-    <meta property="twitter:description" content="a tiny service for generating abstract random avatars in rust." />
-    <meta property="twitter:image" content="https://riptar.gregermendle.com/preview.png" />
+    <meta
+      property="twitter:description"
+      content="a tiny service for generating abstract random avatars in rust."
+    />
+    <meta
+      property="twitter:image"
+      content="https://riptar.gregermendle.com/preview.png"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link
       href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap"
       rel="stylesheet"
@@ -36,9 +56,11 @@
       }
       html,
       body {
+        color-scheme: dark;
         font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
           Oxygen-Sans, Ubuntu, Cantarell, Helvetica Neue, sans-serif;
         background-color: var(--background);
+        color: white;
         font-size: 12px;
         height: 100%;
         margin: 0;
@@ -59,54 +81,6 @@
       footer {
         padding: 24px 0;
       }
-      .dot {
-        position: relative;
-      }
-      .spread-border::after {
-        --gradient-spread: 200px;
-        --gradient-color: rgba(255, 255, 255, 0.12);
-        content: "";
-        position: absolute;
-        inset: 0;
-        left: calc(var(--gradient-spread) * -0.5);
-        right: calc(var(--gradient-spread) * -0.5);
-        pointer-events: none;
-        background: linear-gradient(
-            to left,
-            transparent 0,
-            var(--gradient-color) var(--gradient-spread),
-            var(--gradient-color) calc(100% - var(--gradient-spread)),
-            transparent
-          ),
-          linear-gradient(
-            to left,
-            transparent 0,
-            var(--gradient-color) var(--gradient-spread),
-            var(--gradient-color) calc(100% - var(--gradient-spread)),
-            transparent
-          );
-        background-size: 100% 1px, 100% 1px;
-        background-position: 0 0, 0 100%;
-        background-repeat: no-repeat;
-      }
-      .dot::before {
-        --dot-color: rgba(255, 255, 255, 0.3);
-        --dot-size: 8px;
-        --dot-gradient: radial-gradient(var(--background) 30%, var(--dot-color) 30%, var(--dot-color) 50%, transparent 50%);
-        content: "";
-        position: absolute;
-        inset: calc(var(--dot-size) * -0.5);
-        pointer-events: none;
-        background-image: var(--dot-gradient),
-          var(--dot-gradient),
-          var(--dot-gradient),
-          var(--dot-gradient);
-        background-size: var(--dot-size) var(--dot-size),
-          var(--dot-size) var(--dot-size), var(--dot-size) var(--dot-size),
-          var(--dot-size) var(--dot-size);
-        background-position: 0 0, 100% 0, 0 100%, 100% 100%;
-        background-repeat: no-repeat;
-      }
       h1 {
         font-family: "Libre Barcode 128 Text", system-ui;
         font-weight: 200;
@@ -115,150 +89,126 @@
         margin: 0;
         padding: 0;
       }
-      fieldset {
-        display: flex;
-        gap: 8px;
-        border: 0;
-        padding: 0;
-      }
-      fieldset {
-        margin-bottom: 4px;
-        color: #999;
-      }
-      input[type="text"] {
-        width: 100%;
-        background-color: transparent;
-        border: 1px solid #ffffff22;
-        padding: 8px 12px;
-        border-radius: 20px;
+      label {
+        color: grey;
+        user-select: none;
       }
       input[type="radio"] {
-        display: inline;
         appearance: none;
-        margin: 0;
       }
-      input[type="radio"] ~ label {
-        display: inline-block;
-        border-radius: 6px;
-        padding: 4px 8px;
-        border: 1px solid #ffffff33;
+      input[type="radio"]:checked + label {
+        color: white;
       }
-      input[type="radio"]:focus ~ label {
-        background-color: #ffffff22;
+      input[type="radio"]:focus-visible + label {
+        color: orange;
       }
-      input[type="radio"]:checked ~ label {
-        border-color: #fff;
+      .input {
+        line-height: 14px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+        white-space: nowrap;
       }
-      form {
-        display: grid;
-        gap: 16px;
-        grid-template-rows: repeat(3, auto);
-        padding: 0 16px;
-        max-width: 320px;
+      .input > span {
+        color: grey;
       }
-      .box {
-        background-color: #ffffff03;
-        border-left: 1px solid #ffffff11;
-        border-right: 1px solid #ffffff11;
+      input[type="text"] {
+        padding: 0;
+        border: 0;
+        background-color: transparent;
+        outline: none;
+        width: 100px;
+        border-bottom: 1px solid grey;
       }
       .content {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 24px;
+        gap: 12px;
       }
-      #preview-url {
-        padding: 8px 12px;
-        background-color: #ffffff09;
-        border: 1px solid #ffffff22;
-        border-radius: 20px;
-        box-shadow: 0 16px 100px 0 rgba(255, 255, 255, 0.2);
-        position: relative;
-        overflow: hidden;
+      .tab {
+        display: none;
       }
-      #preview-url::before {
-        padding: 8px 12px;
-        position: absolute;
-        inset: 0;
-        background-color: #000000aa;
-        content: "Copied!";
-        backdrop-filter: blur(4px);
-        opacity: 0;
-        transition: opacity 150ms;
-      }
-      #preview-url.copied::before {
-        opacity: 1;
-      }
-      .avatar-row {
-        padding: 32px;
+      .content:has(input[value="riptar"]:checked) .tab.riptar {
         display: flex;
-        gap: 16px;
       }
-      .avatar-row img {
-        border-radius: 100%;
-        width: 64px;
-        height: 64px;
-      }
-      .options {
-        padding-top: 16px;
+      .content:has(input[value="dither"]:checked) .tab.dither {
         display: flex;
-        justify-content: space-between;
-        border-top: 1px solid #ffffff11;
+      }
+      select {
+        border: 0;
+      }
+      button {
+        border: 1px solid grey;
+        background-color: transparent;
+      }
+      img {
+        object-fit: contain;
       }
     </style>
   </head>
   <body>
     <main>
       <div class="content">
-        <button id="preview-url"></button>
-        <div class="box dot spread-border">
-          <div class="avatar-row">
-            <img class="riptar" src="/riptar/gakk?color=on" />
-            <img id="preview" class="riptar" src="/riptar/riptar" />
-            <img class="riptar" src="/riptar/riptar?color=on" />
-          </div>
-          <form id="inputs" onsubmit="return false;">
+        <nav>
+          <input type="radio" value="riptar" id="riptar" name="route" checked />
+          <label for="riptar"> RIPTAR </label>
+          <input type="radio" value="dither" id="dither" name="route" />
+          <label for="dither"> DITHER </label>
+        </nav>
+        <div class="content tab riptar">
+          <img
+            class="riptar-preview"
+            src="https://riptar.gregermendle.com/riptar/riptar"
+            height="128px"
+            width="128px"
+          />
+          <div class="input">
+            <span>riptar.gregermendle.com/riptar/</span>
             <input
-              id="hashable"
-              name="hashable"
-              value=""
-              placeholder="enter a name here..."
               type="text"
+              name="hash"
+              id="hash"
+              placeholder="'riptar'"
+              value="riptar"
             />
-            <div class="options">
-              <fieldset class="image-type">
-                <div>
-                  <input id="png" name="format" type="radio" value="png" />
-                  <label for="png"> PNG</label>
-                </div>
-                <div>
-                  <input
-                    id="svg"
-                    name="format"
-                    type="radio"
-                    value="svg"
-                    checked
-                  />
-                  <label for="svg">SVG</label>
-                </div>
-              </fieldset>
-              <fieldset class="image-type">
-                <div>
-                  <input
-                    id="color"
-                    name="color"
-                    type="radio"
-                    value="on"
-                  />
-                  <label for="color">Color</label>
-                </div>
-                <div>
-                  <input id="grayscale" name="color" type="radio" value="off" checked />
-                  <label for="grayscale"> Grayscale</label>
-                </div>
-              </fieldset>
-            </div>
-          </form>
+            <span>?format=</span>
+            <select id="format" name="format">
+              <option value="svg">svg</option>
+              <option value="png">png</option>
+            </select>
+            <span>&color=</span>
+            <select id="color" name="color">
+              <option value="off" selected>off</option>
+              <option value="on">on</option>
+            </select>
+          </div>
+          <button id="riptar-copy">copy</button>
+        </div>
+        <div class="content tab dither">
+          <img
+            class="dither-preview"
+            src="https://riptar.gregermendle.com/dither?url=https://riptar.gregermendle.com/riptar/riptar?format=png"
+            height="128px"
+            width="128px"
+          />
+          <div class="input">
+            <span>riptar.gregermendle.com/dither?url=</span>
+            <input
+              type="text"
+              name="url"
+              id="url"
+              placeholder="'https://riptar.gregermendle.com/riptar/riptar?format=png'"
+              value="https://riptar.gregermendle.com/riptar/riptar?format=png"
+            />
+            <span>&height=</span>
+            <input type="text" id="height" value="128px" />
+            <span>&width=</span>
+            <input type="text" id="width" value="128px" />
+          </div>
+          <button id="dither-copy">copy</button>
         </div>
       </div>
       <footer>
@@ -266,60 +216,118 @@
       </footer>
     </main>
     <script>
-      // current url
-      const url = new URL(document.location.href);
-      const basename = url.protocol + "//" + url.host;
-      // form containing all of our inputs
-      const form = document.getElementById("inputs");
-      // input with string to be hashed
-      const hashable = document.getElementById("hashable");
-      // riptar result image
-      const preview = document.getElementById("preview");
-      const previewUrl = document.getElementById("preview-url");
+      document.addEventListener("DOMContentLoaded", function () {
+        const hashInput = document.getElementById("hash");
+        growingInput(hashInput);
 
-      const getRiptarUrl = () => {
-        let search = new URLSearchParams();
-        const formData = new FormData(form);
+        const formatSelect = document.getElementById("format");
+        const colorSelect = document.getElementById("color");
 
-        if (formData.get("format") === "png") {
-          search.set("format", "png");
+        const urlInput = document.getElementById("url");
+        const heightInput = document.getElementById("height");
+        const widthInput = document.getElementById("width");
+        growingInput(urlInput);
+        growingInput(heightInput);
+        growingInput(widthInput);
+
+        const riptarCopyButton = document.getElementById("riptar-copy");
+        const ditherCopyButton = document.getElementById("dither-copy");
+        const riptarPreviewImage = document.querySelector(".riptar-preview");
+        const ditherPreviewImage = document.querySelector(".dither-preview");
+
+        function genRiptarUrl() {
+          const hash = hashInput.value || "riptar";
+          const format = formatSelect.value || "svg";
+          const color = colorSelect.value || "off";
+          return `https://riptar.gregermendle.com/riptar/${hash}?format=${format}&color=${color}`;
         }
 
-        if (formData.get("color") === "on") {
-          search.set("color", "on");
+        function genDitherUrl() {
+          const url = urlInput.value || genRiptarUrl();
+          const height = parseInt(heightInput.value, 10);
+          const width = parseInt(widthInput.value, 10);
+          return `https://riptar.gregermendle.com/dither?url=${url}&height=${height}&width=${width}`;
         }
 
-        const hashable = formData.get("hashable") || "riptar";
-        const query = search.size > 0 ? "?" + search.toString() : "";
-        return "/riptar/" + encodeURIComponent(hashable) + query;
-      };
+        function copyToClipboard(url) {
+          navigator.clipboard
+            .writeText(url)
+            .then(() => {
+              riptarPreviewImage.style.outline = "2px solid darkred";
+              ditherPreviewImage.style.outline = "2px solid darkred";
+              setTimeout(() => {
+                riptarPreviewImage.style.outline = "none";
+                ditherPreviewImage.style.outline = "none";
+              }, 1000);
+            })
+            .catch((err) => {
+              console.error("Failed to copy URL: ", err);
+            });
+        }
 
-      // set initial value of url to copy
-      previewUrl.innerText = basename + getRiptarUrl();
+        let debounce;
+        function updateRiptarImage() {
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => {
+            riptarPreviewImage.src = genRiptarUrl();
+          }, 250);
+        }
 
-      let popupTimer;
-      const copyPreviewUrl = () => {
-        navigator.clipboard.writeText(basename + getRiptarUrl());
-        previewUrl.classList.add("copied");
-        if (popupTimer) clearTimeout(popupTimer);
-        popupTimer = setTimeout(() => {
-          previewUrl.classList.remove("copied");
-        }, 650)
+        function updateDitherImage() {
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => {
+            ditherPreviewImage.src = genDitherUrl();
+          }, 250);
+        }
+
+        riptarCopyButton.addEventListener("click", () =>
+          copyToClipboard(genRiptarUrl())
+        );
+        hashInput.addEventListener("input", updateRiptarImage);
+        formatSelect.addEventListener("change", updateRiptarImage);
+        colorSelect.addEventListener("change", updateRiptarImage);
+
+        ditherCopyButton.addEventListener("click", () =>
+          copyToClipboard(genDitherUrl())
+        );
+        urlInput.addEventListener("input", updateDitherImage);
+        heightInput.addEventListener("input", updateDitherImage);
+        widthInput.addEventListener("input", updateDitherImage);
+
+        updateRiptarImage();
+      });
+
+      function growingInput(inputElement, minWidth = 30, padding = 2, maxWidth = 240) {
+        const measureSpan = document.createElement("span");
+        measureSpan.style.position = "absolute";
+        measureSpan.style.visibility = "hidden";
+        measureSpan.style.whiteSpace = "pre";
+        measureSpan.style.height = "0";
+        measureSpan.style.overflow = "hidden";
+        document.body.appendChild(measureSpan);
+
+        const inputStyles = window.getComputedStyle(inputElement);
+
+        measureSpan.style.fontSize = inputStyles.fontSize;
+        measureSpan.style.fontFamily = inputStyles.fontFamily;
+        measureSpan.style.fontWeight = inputStyles.fontWeight;
+        measureSpan.style.letterSpacing = inputStyles.letterSpacing;
+
+        function updateInputWidth() {
+          measureSpan.textContent =
+            inputElement.value || inputElement.placeholder || "";
+          const textWidth = measureSpan.getBoundingClientRect().width;
+          inputElement.style.width =
+            Math.min(maxWidth, Math.max(minWidth, textWidth + padding)) + "px";
+        }
+
+        inputElement.addEventListener("input", updateInputWidth);
+        inputElement.addEventListener("change", updateInputWidth);
+        inputElement.addEventListener("keyup", updateInputWidth);
+
+        updateInputWidth();
+        return updateInputWidth;
       }
-
-      let timeout;
-      const loadRiptar = (e) => {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          const path = getRiptarUrl();
-          preview.setAttribute("src", path);
-          previewUrl.innerText = basename + path;
-        }, 250);
-      };
-
-      previewUrl.addEventListener("click", copyPreviewUrl);
-      form.addEventListener("change", loadRiptar);
-      hashable.addEventListener("keydown", loadRiptar);
     </script>
   </body>
 </html>
