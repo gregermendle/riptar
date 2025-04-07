@@ -8,6 +8,10 @@
       {
         "source": "/riptar/:name*",
         "destination": "/api/riptar/:name*"
+      },
+      {
+        "source": "/dither",
+        "destination": "/api/dither"
       }
     ],
     "redirects": [

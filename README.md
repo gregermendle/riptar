@@ -1,10 +1,20 @@
 # riptar
 
-<img src="https://riptar.gregermendle.com/riptar/riptar?color=on" width="48" height="48" />
-
 ## usage
 
-base url
+### dither
+
+<img src="https://riptar.gregermendle.com/riptar?url=" width="48" height="48" />
+
+basic
+
+```https://riptar.gregermendle.com/dither?url=```
+
+### riptar
+
+<img src="https://riptar.gregermendle.com/riptar/riptar?color=on" width="48" height="48" />
+
+basic
 
 ```https://riptar.gregermendle.com/riptar/:name```
 

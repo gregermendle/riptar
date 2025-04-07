@@ -3,6 +3,9 @@ use resvg::{
     usvg::{self, Options, Transform, TreeParsing},
     Tree,
 };
+use reqwest::blocking::get;
+use image::{GrayImage, ImageFormat, Luma};
+use std::io::Cursor;
 
 pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
     let l = hash % 360;
@@ -82,4 +85,47 @@ pub fn djb2(str: &str) -> u32 {
     str.chars()
         .map(|c| c.to_digit(16).unwrap_or(1))
         .fold(5381, |hash, c| ((hash << 5) + hash) + c)
+}
+
+pub fn dither(url: &String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let response = get(url)?;
+    let bytes = response.bytes()?;
+    let img = image::load_from_memory(&bytes)?.to_luma8();
+
+    let mut dithered = img.clone();
+    floyd_steinberg_dither(&mut dithered);
+
+    let mut buf = Cursor::new(Vec::new());
+    dithered.write_to(&mut buf, ImageFormat::Png)?;
+    Ok(buf.into_inner())
+}
+
+fn floyd_steinberg_dither(img: &mut GrayImage) {
+    let (width, height) = img.dimensions();
+
+    for y in 0..height {
+        for x in 0..width {
+            let old_pixel = img.get_pixel(x, y)[0];
+            let new_pixel = if old_pixel < 128 { 0 } else { 255 };
+            let quant_error = old_pixel as i16 - new_pixel as i16;
+
+            img.put_pixel(x, y, Luma([new_pixel]));
+
+            for (dx, dy, weight) in [
+                (1, 0, 7),
+                (-1, 1, 3),
+                (0, 1, 5),
+                (1, 1, 1),
+            ] {
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                if nx >= 0 && ny >= 0 && nx < width as i32 && ny < height as i32 {
+                    let neighbor = img.get_pixel(nx as u32, ny as u32)[0];
+                    let adjusted = neighbor as i16 + quant_error * weight / 16;
+                    let clamped = adjusted.clamp(0, 255) as u8;
+                    img.put_pixel(nx as u32, ny as u32, Luma([clamped]));
+                }
+            }
+        }
+    }
 }
