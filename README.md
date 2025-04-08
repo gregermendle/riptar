@@ -1,7 +1,5 @@
 # riptar
 
-## usage
-
 ### dither
 
 <img src="https://riptar.gregermendle.com/dither?url=https://riptar.gregermendle.com/riptar/riptar?format=png&height=48&width=48" width="48" height="48" />
@@ -12,7 +10,7 @@ basic
 
 ### riptar
 
-<img src="https://riptar.gregermendle.com/riptar/riptar?color=on" width="48" height="48" />
+<img src="https://riptar.gregermendle.com/riptar/gregermendle" width="48" height="48" />
 
 basic
 
