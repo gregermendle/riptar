@@ -1,5 +1,12 @@
 # riptar
 
+Deploy to Cloudflare Workers with [Wrangler](https://developers.cloudflare.com/workers/wrangler/):
+
+```bash
+rustup target add wasm32-unknown-unknown
+npx wrangler deploy
+```
+
 ### dither
 
 <img src="https://riptar.gregermendle.com/dither?url=https://riptar.gregermendle.com/riptar/riptar?format=png&height=48&width=48" width="48" height="48" />

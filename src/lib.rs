@@ -1,11 +1,102 @@
 use image::{imageops::FilterType, GrayImage, ImageFormat, Luma};
-use reqwest::blocking::get;
 use resvg::{
     tiny_skia::Pixmap,
     usvg::{self, Options, Transform, TreeParsing},
     Tree,
 };
+use std::collections::HashMap;
 use std::io::Cursor;
+use worker::*;
+
+fn cache_headers() -> Headers {
+    let h = Headers::new();
+    h.set("Cache-Control", "public, immutable, no-transform, max-age=31536000")
+        .unwrap();
+    h
+}
+
+#[event(fetch, respond_with_errors)]
+async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    let router = Router::new();
+
+    router
+        .get_async("/dither", |req, _ctx| async move {
+            let url = req.url()?;
+            let query: HashMap<String, String> =
+                url.query_pairs().into_owned().collect();
+            let url_param = query.get("url");
+            let width = query.get("width").and_then(|s| s.parse::<u32>().ok());
+            let height = query.get("height").and_then(|s| s.parse::<u32>().ok());
+
+            if let Some(image_url) = url_param {
+                match fetch_image(image_url).await {
+                    Ok(bytes) => match dither_from_bytes(&bytes, width, height) {
+                        Ok(dithered) => {
+                            let h = cache_headers();
+                            h.set("Content-Type", "image/png").unwrap();
+                            return Ok(Response::from_bytes(dithered)?
+                                .with_headers(h));
+                        }
+                        Err(_) => return Response::error("Internal error", 500),
+                    },
+                    Err(_) => return Response::error("Internal error", 500),
+                }
+            }
+            Response::error("Bad request", 400)
+        })
+        .get_async("/riptar/:name", |req, ctx| async move {
+            let name = ctx
+                .param("name")
+                .map(|s| s.as_str())
+                .unwrap_or("riptar");
+            let url = req.url()?;
+            let query: HashMap<String, String> =
+                url.query_pairs().into_owned().collect();
+            let format_key = query.get("format");
+            let color_key = query.get("color");
+
+            let hash = djb2(name);
+            let size = 128;
+            let svg = riptar_svg(
+                size,
+                hash,
+                color_key.is_some_and(|c| c == "on"),
+            );
+
+            if format_key.is_some_and(|s| s == "png") {
+                let image = render_svg(&svg, size);
+                let h = cache_headers();
+                h.set("Content-Type", "image/png").unwrap();
+                return Ok(Response::from_bytes(image)?.with_headers(h));
+            }
+
+            let h = cache_headers();
+            h.set("Content-Type", "image/svg+xml").unwrap();
+            Ok(Response::ok(svg)?.with_headers(h))
+        })
+        .get_async("/riptar", |req, _ctx| async move {
+            let mut u = req.url()?.clone();
+            u.set_path("/riptar/riptar");
+            u.set_query(None);
+            Response::redirect(u)
+        })
+        .get_async("/", |req, ctx| async move {
+            let assets = ctx.env.assets("ASSETS")?;
+            assets.fetch_request(req).await
+        })
+        .get_async("/*path", |req, ctx| async move {
+            let assets = ctx.env.assets("ASSETS")?;
+            assets.fetch_request(req).await
+        })
+        .run(req, env)
+        .await
+}
+
+async fn fetch_image(url: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let resp = reqwest::get(url).await?;
+    let bytes = resp.bytes().await?.to_vec();
+    Ok(bytes)
+}
 
 pub fn riptar_svg(size: u32, hash: u32, is_color: bool) -> String {
     let l = hash % 360;
@@ -87,14 +178,12 @@ pub fn djb2(str: &str) -> u32 {
         .fold(5381, |hash, c| ((hash << 5) + hash) + c)
 }
 
-pub fn dither(
-    url: &String,
+fn dither_from_bytes(
+    bytes: &[u8],
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let response = get(url)?;
-    let bytes = response.bytes()?;
-    let mut img = image::load_from_memory(&bytes)?;
+    let mut img = image::load_from_memory(bytes)?;
 
     if let (Some(w), Some(h)) = (width, height) {
         img = img.resize(w, h, FilterType::Triangle);
@@ -120,7 +209,8 @@ fn floyd_steinberg_dither(img: &mut GrayImage) {
 
             img.put_pixel(x, y, Luma([new_pixel]));
 
-            for (dx, dy, weight) in [(1, 0, 7), (-1, 1, 3), (0, 1, 5), (1, 1, 1)] {
+            for (dx, dy, weight) in [(1, 0, 7), (-1, 1, 3), (0, 1, 5), (1, 1, 1)]
+            {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 if nx >= 0 && ny >= 0 && nx < width as i32 && ny < height as i32 {

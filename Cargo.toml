@@ -3,25 +3,20 @@ name = "riptar"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 image = "0.25.6"
-reqwest = { version = "0.12.15", features = ["blocking", "json"] }
 resvg = "0.37.0"
 serde = "1.0.195"
 serde_json = "1.0.111"
-tokio = "1.35.1"
 url = "2.5.0"
-vercel_runtime = "1.1.0"
+worker = "0.7"
+worker-macros = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
 
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "riptar"
-path = "api/riptar/[name].rs"
-
-[[bin]]
-name = "dither"
-path = "api/dither.rs"
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
