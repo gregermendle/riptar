@@ -246,7 +246,7 @@
           const url = urlInput.value || genRiptarUrl();
           const height = parseInt(heightInput.value, 10);
           const width = parseInt(widthInput.value, 10);
-          return `https://riptar.gregermendle.com/dither?url=${url}&height=${height}&width=${width}`;
+          return `https://riptar.gregermendle.com/dither?url=${encodeURIComponent(url)}&height=${height}&width=${width}`;
         }
 
         function copyToClipboard(url) {
