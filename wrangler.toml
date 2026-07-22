@@ -7,7 +7,7 @@ pattern = "riptar.gregermendle.com"
 custom_domain = true
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "cargo install -q worker-build@0.8.5 && worker-build --release"
 
 [assets]
 directory = "./public"
