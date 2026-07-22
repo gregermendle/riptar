@@ -5,8 +5,9 @@ use image::{
 use std::collections::HashMap;
 
 const LOGICAL_SIZE: i32 = 16;
-const OUTPUT_SIZE: u32 = 32;
-const PIXEL_SCALE: u32 = OUTPUT_SIZE / LOGICAL_SIZE as u32;
+const DEFAULT_OUTPUT_SIZE: u32 = 32;
+const MIN_OUTPUT_SIZE: u32 = 16;
+const MAX_OUTPUT_SIZE: u32 = 256;
 
 const PETAL_PALETTES: [[[u8; 4]; 3]; 7] = [
     [rgba(0xff, 0x6b, 0x8a), rgba(0xd9, 0x36, 0x63), rgba(0xff, 0x9d, 0xb2)],
@@ -72,7 +73,14 @@ pub struct GeneratedFlower {
     pub background: [u8; 4],
 }
 
-pub fn generate_flower_image(seed: &str, style: FlowerStyle) -> GeneratedFlower {
+pub fn normalize_flower_size(size: Option<u32>) -> u32 {
+    let size = size.unwrap_or(DEFAULT_OUTPUT_SIZE).clamp(MIN_OUTPUT_SIZE, MAX_OUTPUT_SIZE);
+    ((size + 8) / 16) * 16
+}
+
+pub fn generate_flower_image(seed: &str, style: FlowerStyle, size: Option<u32>) -> GeneratedFlower {
+    let output_size = normalize_flower_size(size);
+    let pixel_scale = output_size / LOGICAL_SIZE as u32;
     let include_stem = style == FlowerStyle::FlowerWithStem;
     let mut random = SeededRandom::new(seed);
 
@@ -145,14 +153,14 @@ pub fn generate_flower_image(seed: &str, style: FlowerStyle) -> GeneratedFlower 
         pixels.recenter();
     }
 
-    let mut image = RgbaImage::from_pixel(OUTPUT_SIZE, OUTPUT_SIZE, Rgba(background));
+    let mut image = RgbaImage::from_pixel(output_size, output_size, Rgba(background));
 
     for ((x, y), color) in pixels.items {
-        let start_x = x as u32 * PIXEL_SCALE;
-        let start_y = y as u32 * PIXEL_SCALE;
+        let start_x = x as u32 * pixel_scale;
+        let start_y = y as u32 * pixel_scale;
 
-        for dy in 0..PIXEL_SCALE {
-            for dx in 0..PIXEL_SCALE {
+        for dy in 0..pixel_scale {
+            for dx in 0..pixel_scale {
                 image.put_pixel(start_x + dx, start_y + dy, Rgba(color));
             }
         }
@@ -164,8 +172,9 @@ pub fn generate_flower_image(seed: &str, style: FlowerStyle) -> GeneratedFlower 
 pub fn generate_flower_png(
     seed: &str,
     style: FlowerStyle,
+    size: Option<u32>,
 ) -> Result<Vec<u8>, image::ImageError> {
-    let generated = generate_flower_image(seed, style);
+    let generated = generate_flower_image(seed, style, size);
     encode_png(&generated.image)
 }
 
@@ -396,20 +405,26 @@ mod tests {
 
     #[test]
     fn deterministic_for_same_seed() {
-        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly).unwrap();
-        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly).unwrap();
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
         assert_eq!(a, b);
     }
 
     #[test]
-    fn output_is_32_by_32() {
-        let generated = generate_flower_image("user-1", FlowerStyle::FlowerWithStem);
+    fn output_is_32_by_32_by_default() {
+        let generated = generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None);
         assert_eq!(generated.image.dimensions(), (32, 32));
     }
 
     #[test]
+    fn output_respects_custom_size() {
+        let generated = generate_flower_image("user-1", FlowerStyle::FlowerOnly, Some(64));
+        assert_eq!(generated.image.dimensions(), (64, 64));
+    }
+
+    #[test]
     fn output_is_a_png() {
-        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly).unwrap();
+        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
     }
 }
