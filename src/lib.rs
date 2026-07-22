@@ -1,3 +1,6 @@
+mod flower;
+
+use flower::{generate_flower_png, FlowerStyle};
 use image::{imageops::FilterType, GrayImage, ImageFormat, Luma};
 use resvg::{
     tiny_skia::Pixmap,
@@ -45,6 +48,35 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 }
             }
             Response::error("Bad request", 400)
+        })
+        .get_async("/flower/:name", |req, ctx| async move {
+            let name = ctx
+                .param("name")
+                .map(|s| s.as_str())
+                .unwrap_or("flower");
+            let url = req.url()?;
+            let query: HashMap<String, String> =
+                url.query_pairs().into_owned().collect();
+            let style = if query.get("stem").is_some_and(|s| s == "on") {
+                FlowerStyle::FlowerWithStem
+            } else {
+                FlowerStyle::FlowerOnly
+            };
+
+            match generate_flower_png(name, style) {
+                Ok(bytes) => {
+                    let h = cache_headers();
+                    h.set("Content-Type", "image/png").unwrap();
+                    Ok(Response::from_bytes(bytes)?.with_headers(h))
+                }
+                Err(_) => Response::error("Internal error", 500),
+            }
+        })
+        .get_async("/flower", |req, _ctx| async move {
+            let mut u = req.url()?.clone();
+            u.set_path("/flower/flower");
+            u.set_query(None);
+            Response::redirect(u)
         })
         .get_async("/riptar/:name", |req, ctx| async move {
             let name = ctx
