@@ -57,10 +57,10 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let url = req.url()?;
             let query: HashMap<String, String> =
                 url.query_pairs().into_owned().collect();
-            let style = if query.get("stem").is_some_and(|s| s == "on") {
-                FlowerStyle::FlowerWithStem
-            } else {
+            let style = if query.get("stem").is_some_and(|s| s == "off") {
                 FlowerStyle::FlowerOnly
+            } else {
+                FlowerStyle::FlowerWithStem
             };
             let size = query.get("size").and_then(|s| s.parse::<u32>().ok());
             let variant = query.get("variant").and_then(|s| s.parse::<u32>().ok());
