@@ -61,6 +61,8 @@ const PETAL_SHAPE: [(i32, i32); 14] = [
 
 const CENTER_HIGHLIGHT: [u8; 4] = rgba(0xff, 0xf3, 0xa3);
 
+pub const FLOWER_VARIANT_COUNT: u8 = 5;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlowerStyle {
     FlowerWithStem,
@@ -78,25 +80,38 @@ pub fn normalize_flower_size(size: Option<u32>) -> u32 {
     ((size + 8) / 16) * 16
 }
 
-pub fn generate_flower_image(seed: &str, style: FlowerStyle, size: Option<u32>) -> GeneratedFlower {
+pub fn normalize_flower_variant(variant: Option<u32>) -> u8 {
+    (variant.unwrap_or(0) % FLOWER_VARIANT_COUNT as u32) as u8
+}
+
+pub fn generate_flower_image(
+    seed: &str,
+    style: FlowerStyle,
+    size: Option<u32>,
+    variant: Option<u32>,
+) -> GeneratedFlower {
     let output_size = normalize_flower_size(size);
     let pixel_scale = output_size / LOGICAL_SIZE as u32;
+    let variant = normalize_flower_variant(variant);
     let include_stem = style == FlowerStyle::FlowerWithStem;
-    let mut random = SeededRandom::new(seed);
 
-    let palette = PETAL_PALETTES[random.index(PETAL_PALETTES.len())];
-    let center_color = CENTER_COLORS[random.index(CENTER_COLORS.len())];
-    let stem_color = STEM_COLORS[random.index(STEM_COLORS.len())];
-    let leaf_color = STEM_COLORS[random.index(STEM_COLORS.len())];
-    let background = BACKGROUNDS[random.index(BACKGROUNDS.len())];
+    let mut identity_rng = SeededRandom::new(seed);
+    let variation_seed = format!("{seed}:variant:{variant}");
+    let mut variation_rng = SeededRandom::new(&variation_seed);
+
+    let palette = PETAL_PALETTES[identity_rng.index(PETAL_PALETTES.len())];
+    let center_color = CENTER_COLORS[identity_rng.index(CENTER_COLORS.len())];
+    let stem_color = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
+    let leaf_color = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
+    let background = BACKGROUNDS[identity_rng.index(BACKGROUNDS.len())];
 
     let center_x = 8;
     let center_y = if include_stem {
-        6 + random.index(2) as i32
+        6 + identity_rng.index(2) as i32
     } else {
         8
     };
-    let stem_lean = if random.next_f64() > 0.5 { 1 } else { -1 };
+    let stem_lean = if identity_rng.next_f64() > 0.5 { 1 } else { -1 };
 
     let mut pixels = PixelGrid::default();
 
@@ -104,7 +119,7 @@ pub fn generate_flower_image(seed: &str, style: FlowerStyle, size: Option<u32>) 
         let distance = offset_x.abs() + offset_y.abs();
         let color = if distance >= 4 {
             palette[1]
-        } else if random.next_f64() > 0.72 {
+        } else if identity_rng.next_f64() > 0.72 {
             palette[2]
         } else {
             palette[0]
@@ -113,21 +128,39 @@ pub fn generate_flower_image(seed: &str, style: FlowerStyle, size: Option<u32>) 
         pixels.add_mirrored(center_x, center_y, offset_x, offset_y, color);
     }
 
-    if random.next_f64() > 0.45 {
+    if identity_rng.next_f64() > 0.45 {
         pixels.add_mirrored(center_x, center_y, 3, 0, palette[1]);
     }
-    if random.next_f64() > 0.50 {
+    if identity_rng.next_f64() > 0.50 {
         pixels.add_mirrored(center_x, center_y, 1, -4, palette[1]);
     }
-    if random.next_f64() > 0.55 {
+    if identity_rng.next_f64() > 0.55 {
         pixels.add_mirrored(center_x, center_y, 3, 1, palette[0]);
     }
-    if random.next_f64() > 0.60 {
+    if identity_rng.next_f64() > 0.60 {
         pixels.add_mirrored(center_x, center_y, 1, 3, palette[1]);
     }
 
-    if !include_stem {
-        add_flower_only_variation(&mut pixels, &mut random, center_x, center_y, palette);
+    add_flower_variant(
+        &mut pixels,
+        &mut variation_rng,
+        center_x,
+        center_y,
+        palette,
+        variant,
+    );
+
+    if variation_rng.next_f64() > 0.55 {
+        pixels.add_mirrored(center_x, center_y, 2, -3, palette[1]);
+    }
+    if variation_rng.next_f64() > 0.60 {
+        pixels.add_mirrored(center_x, center_y, 3, -1, palette[2]);
+    }
+    if variation_rng.next_f64() > 0.65 {
+        pixels.add_mirrored(center_x, center_y, 2, 3, palette[1]);
+    }
+    if variation_rng.next_f64() > 0.70 {
+        pixels.add_mirrored(center_x, center_y, 4, 0, palette[1]);
     }
 
     pixels.add(center_x, center_y, center_color);
@@ -135,14 +168,14 @@ pub fn generate_flower_image(seed: &str, style: FlowerStyle, size: Option<u32>) 
     pixels.add(center_x, center_y - 1, center_color);
     pixels.add(center_x - 1, center_y - 1, center_color);
 
-    if random.next_f64() > 0.4 {
+    if identity_rng.next_f64() > 0.4 {
         pixels.add(center_x - 1, center_y - 1, CENTER_HIGHLIGHT);
     }
 
     if include_stem {
         add_stem(
             &mut pixels,
-            &mut random,
+            &mut identity_rng,
             center_x,
             center_y,
             stem_lean,
@@ -173,8 +206,9 @@ pub fn generate_flower_png(
     seed: &str,
     style: FlowerStyle,
     size: Option<u32>,
+    variant: Option<u32>,
 ) -> Result<Vec<u8>, image::ImageError> {
-    let generated = generate_flower_image(seed, style, size);
+    let generated = generate_flower_image(seed, style, size, variant);
     encode_png(&generated.image)
 }
 
@@ -191,14 +225,15 @@ pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, image::ImageError> {
     Ok(bytes)
 }
 
-fn add_flower_only_variation(
+fn add_flower_variant(
     pixels: &mut PixelGrid,
-    random: &mut SeededRandom,
+    rng: &mut SeededRandom,
     center_x: i32,
     center_y: i32,
     palette: [[u8; 4]; 3],
+    variant: u8,
 ) {
-    match random.index(5) {
+    match variant % FLOWER_VARIANT_COUNT {
         0 => {
             pixels.add_mirrored(center_x, center_y, 3, -1, palette[0]);
             pixels.add_mirrored(center_x, center_y, 3, 0, palette[1]);
@@ -228,26 +263,13 @@ fn add_flower_only_variation(
             pixels.add_mirrored(center_x, center_y, 3, -2, palette[0]);
             pixels.add_mirrored(center_x, center_y, 3, 2, palette[1]);
 
-            let x = if random.next_f64() > 0.5 {
+            let x = if rng.next_f64() > 0.5 {
                 center_x - 1
             } else {
                 center_x + 1
             };
             pixels.add(x, center_y + 3, palette[0]);
         }
-    }
-
-    if random.next_f64() > 0.55 {
-        pixels.add_mirrored(center_x, center_y, 2, -3, palette[1]);
-    }
-    if random.next_f64() > 0.60 {
-        pixels.add_mirrored(center_x, center_y, 3, -1, palette[2]);
-    }
-    if random.next_f64() > 0.65 {
-        pixels.add_mirrored(center_x, center_y, 2, 3, palette[1]);
-    }
-    if random.next_f64() > 0.70 {
-        pixels.add_mirrored(center_x, center_y, 4, 0, palette[1]);
     }
 }
 
@@ -404,27 +426,67 @@ mod tests {
     use super::*;
 
     #[test]
-    fn deterministic_for_same_seed() {
-        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
-        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
+    fn deterministic_for_same_seed_and_variant() {
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
         assert_eq!(a, b);
     }
 
     #[test]
+    fn different_variants_produce_different_images() {
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(1)).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn variants_wrap_correctly() {
+        assert_eq!(
+            generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(0)).unwrap(),
+            generate_flower_png(
+                "user-1",
+                FlowerStyle::FlowerOnly,
+                None,
+                Some(FLOWER_VARIANT_COUNT as u32),
+            )
+            .unwrap(),
+        );
+    }
+
+    #[test]
+    fn background_is_seed_driven_not_variant_driven() {
+        let a = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(0));
+        let b = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(3));
+        assert_eq!(a.background, b.background);
+    }
+
+    #[test]
     fn output_is_32_by_32_by_default() {
-        let generated = generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None);
+        let generated =
+            generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None, None);
         assert_eq!(generated.image.dimensions(), (32, 32));
     }
 
     #[test]
     fn output_respects_custom_size() {
-        let generated = generate_flower_image("user-1", FlowerStyle::FlowerOnly, Some(64));
+        let generated = generate_flower_image("user-1", FlowerStyle::FlowerOnly, Some(64), None);
         assert_eq!(generated.image.dimensions(), (64, 64));
     }
 
     #[test]
     fn output_is_a_png() {
-        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None).unwrap();
+        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None).unwrap();
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn all_variants_generate_within_canvas() {
+        for variant in 0..FLOWER_VARIANT_COUNT {
+            for style in [FlowerStyle::FlowerOnly, FlowerStyle::FlowerWithStem] {
+                let generated =
+                    generate_flower_image("user-1", style, None, Some(variant as u32));
+                assert_eq!(generated.image.dimensions(), (32, 32));
+            }
+        }
     }
 }

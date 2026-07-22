@@ -63,8 +63,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 FlowerStyle::FlowerOnly
             };
             let size = query.get("size").and_then(|s| s.parse::<u32>().ok());
+            let variant = query.get("variant").and_then(|s| s.parse::<u32>().ok());
 
-            match generate_flower_png(name, style, size) {
+            match generate_flower_png(name, style, size, variant) {
                 Ok(bytes) => {
                     let h = cache_headers();
                     h.set("Content-Type", "image/png").unwrap();
