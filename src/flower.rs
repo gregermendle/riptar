@@ -95,9 +95,17 @@ pub fn generate_flower_image(
     let variant = normalize_flower_variant(variant);
     let include_stem = style == FlowerStyle::FlowerWithStem;
 
+    // Identity properties stay the same for every variation of a seed.
+    // This preserves the flower's palette and background while allowing its
+    // actual silhouette and details to change.
     let mut identity_rng = SeededRandom::new(seed);
+
+    // The React generator effectively generated another deterministic flower
+    // from the same identity. Treat `variant` as a seed salt for every
+    // structural/random shape decision rather than using it only to append a
+    // handful of pixels to an otherwise identical flower.
     let variation_seed = format!("{seed}:variant:{variant}");
-    let mut variation_rng = SeededRandom::new(&variation_seed);
+    let mut shape_rng = SeededRandom::new(&variation_seed);
 
     let palette = PETAL_PALETTES[identity_rng.index(PETAL_PALETTES.len())];
     let center_color = CENTER_COLORS[identity_rng.index(CENTER_COLORS.len())];
@@ -107,19 +115,22 @@ pub fn generate_flower_image(
 
     let center_x = 8;
     let center_y = if include_stem {
-        6 + identity_rng.index(2) as i32
+        6 + shape_rng.index(2) as i32
     } else {
         8
     };
-    let stem_lean = if identity_rng.next_f64() > 0.5 { 1 } else { -1 };
+    let stem_lean = if shape_rng.next_f64() > 0.5 { 1 } else { -1 };
 
     let mut pixels = PixelGrid::default();
 
+    // Base-petal shading and shape details must use the variant-specific RNG.
+    // Previously these used identity_rng, which meant every variant started
+    // with the exact same blossom and only differed by a few added pixels.
     for &(offset_x, offset_y) in &PETAL_SHAPE {
         let distance = offset_x.abs() + offset_y.abs();
         let color = if distance >= 4 {
             palette[1]
-        } else if identity_rng.next_f64() > 0.72 {
+        } else if shape_rng.next_f64() > 0.72 {
             palette[2]
         } else {
             palette[0]
@@ -128,39 +139,46 @@ pub fn generate_flower_image(
         pixels.add_mirrored(center_x, center_y, offset_x, offset_y, color);
     }
 
-    if identity_rng.next_f64() > 0.45 {
+    if shape_rng.next_f64() > 0.45 {
         pixels.add_mirrored(center_x, center_y, 3, 0, palette[1]);
     }
-    if identity_rng.next_f64() > 0.50 {
+    if shape_rng.next_f64() > 0.50 {
         pixels.add_mirrored(center_x, center_y, 1, -4, palette[1]);
     }
-    if identity_rng.next_f64() > 0.55 {
+    if shape_rng.next_f64() > 0.55 {
         pixels.add_mirrored(center_x, center_y, 3, 1, palette[0]);
     }
-    if identity_rng.next_f64() > 0.60 {
+    if shape_rng.next_f64() > 0.60 {
         pixels.add_mirrored(center_x, center_y, 1, 3, palette[1]);
     }
 
-    add_flower_variant(
-        &mut pixels,
-        &mut variation_rng,
-        center_x,
-        center_y,
-        palette,
-        variant,
-    );
+    if !include_stem {
+        // Match the React implementation: the flower-only version chooses a
+        // seeded blossom archetype. The query variant changes the RNG stream;
+        // it does not directly map variant=0 to shape=0, variant=1 to shape=1.
+        // This gives each variant a more complete, natural redesign.
+        let blossom_variant = shape_rng.index(FLOWER_VARIANT_COUNT as usize) as u8;
+        add_flower_variant(
+            &mut pixels,
+            &mut shape_rng,
+            center_x,
+            center_y,
+            palette,
+            blossom_variant,
+        );
 
-    if variation_rng.next_f64() > 0.55 {
-        pixels.add_mirrored(center_x, center_y, 2, -3, palette[1]);
-    }
-    if variation_rng.next_f64() > 0.60 {
-        pixels.add_mirrored(center_x, center_y, 3, -1, palette[2]);
-    }
-    if variation_rng.next_f64() > 0.65 {
-        pixels.add_mirrored(center_x, center_y, 2, 3, palette[1]);
-    }
-    if variation_rng.next_f64() > 0.70 {
-        pixels.add_mirrored(center_x, center_y, 4, 0, palette[1]);
+        if shape_rng.next_f64() > 0.55 {
+            pixels.add_mirrored(center_x, center_y, 2, -3, palette[1]);
+        }
+        if shape_rng.next_f64() > 0.60 {
+            pixels.add_mirrored(center_x, center_y, 3, -1, palette[2]);
+        }
+        if shape_rng.next_f64() > 0.65 {
+            pixels.add_mirrored(center_x, center_y, 2, 3, palette[1]);
+        }
+        if shape_rng.next_f64() > 0.70 {
+            pixels.add_mirrored(center_x, center_y, 4, 0, palette[1]);
+        }
     }
 
     pixels.add(center_x, center_y, center_color);
@@ -168,14 +186,16 @@ pub fn generate_flower_image(
     pixels.add(center_x, center_y - 1, center_color);
     pixels.add(center_x - 1, center_y - 1, center_color);
 
-    if identity_rng.next_f64() > 0.4 {
+    if shape_rng.next_f64() > 0.4 {
         pixels.add(center_x - 1, center_y - 1, CENTER_HIGHLIGHT);
     }
 
     if include_stem {
+        // The stem, lean, and leaves also vary for the same seed when a
+        // different query variant is requested.
         add_stem(
             &mut pixels,
-            &mut identity_rng,
+            &mut shape_rng,
             center_x,
             center_y,
             stem_lean,
