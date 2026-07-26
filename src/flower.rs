@@ -185,8 +185,12 @@ fn lerp_channel(a: u8, b: u8, t: f32) -> u8 {
 }
 
 fn to_night_color([r, g, b, a]: [u8; 4], role: NightColorRole) -> [u8; 4] {
+    if matches!(role, NightColorRole::Background) {
+        return to_night_background_color([r, g, b, a]);
+    }
+
     let (dark_scale, moon_mix) = match role {
-        NightColorRole::Background => (0.24, 0.45),
+        NightColorRole::Background => unreachable!(),
         NightColorRole::Stem => (0.62, 0.10),
         NightColorRole::Flower => (0.82, 0.06),
         NightColorRole::Accent => (0.86, 0.05),
@@ -201,6 +205,17 @@ fn to_night_color([r, g, b, a]: [u8; 4], role: NightColorRole) -> [u8; 4] {
     let moon_b = lerp_channel(db, 30, moon_mix + 0.08);
 
     [moon_r, moon_g, moon_b, a]
+}
+
+fn to_night_background_color([r, g, b, a]: [u8; 4]) -> [u8; 4] {
+    const LIGHTS_OUT: f32 = 0.20;
+
+    [
+        (r as f32 * LIGHTS_OUT).round().clamp(0.0, 255.0) as u8,
+        (g as f32 * LIGHTS_OUT).round().clamp(0.0, 255.0) as u8,
+        (b as f32 * LIGHTS_OUT).round().clamp(0.0, 255.0) as u8,
+        a,
+    ]
 }
 
 pub const FLOWER_VARIANT_COUNT: u8 = 5;
