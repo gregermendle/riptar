@@ -64,19 +64,22 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             };
             let size = query.get("size").and_then(|s| s.parse::<u32>().ok());
             let variant = query.get("variant").and_then(|s| s.parse::<u32>().ok());
-            let format = query.get("format");
+            let animate = query.get("animate").is_some_and(|s| s == "on");
             let delay = query.get("delay").and_then(|s| s.parse::<u32>().ok());
+            let night = query.get("night").is_some_and(|s| s == "on");
+            let transparent = query.get("transparent").is_some_and(|s| s == "on");
+            let hdr = query.get("hdr").is_some_and(|s| s == "on");
 
-            let result = if format.is_some_and(|s| s == "gif") {
-                generate_flower_gif(name, style, size, variant, delay)
+            let result = if animate {
+                generate_flower_gif(name, style, size, variant, delay, night, transparent, hdr)
             } else {
-                generate_flower_png(name, style, size, variant)
+                generate_flower_png(name, style, size, variant, night, transparent, hdr)
             };
 
             match result {
                 Ok(bytes) => {
                     let h = cache_headers();
-                    let content_type = if format.is_some_and(|s| s == "gif") {
+                    let content_type = if animate {
                         "image/gif"
                     } else {
                         "image/png"

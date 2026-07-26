@@ -64,6 +64,145 @@ const PETAL_SHAPE: [(i32, i32); 14] = [
 
 const CENTER_HIGHLIGHT: [u8; 4] = rgba(0xff, 0xf3, 0xa3);
 
+const TRANSPARENT: Rgba<u8> = Rgba([0, 0, 0, 0]);
+
+fn canvas_pixel(background: [u8; 4], transparent: bool) -> Rgba<u8> {
+    if transparent {
+        TRANSPARENT
+    } else {
+        Rgba(background)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum NightColorRole {
+    Background,
+    Stem,
+    Flower,
+    Accent,
+}
+
+struct FlowerColorSet {
+    palette: [[u8; 4]; 3],
+    center_color: [u8; 4],
+    stem_color: [u8; 4],
+    leaf_color: [u8; 4],
+    background: [u8; 4],
+    center_highlight: [u8; 4],
+}
+
+fn pick_flower_colors(identity_rng: &mut SeededRandom, night: bool, hdr: bool) -> FlowerColorSet {
+    let day_palette = PETAL_PALETTES[identity_rng.index(PETAL_PALETTES.len())];
+    let day_center = CENTER_COLORS[identity_rng.index(CENTER_COLORS.len())];
+    let day_stem = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
+    let day_leaf = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
+    let day_background = BACKGROUNDS[identity_rng.index(BACKGROUNDS.len())];
+
+    let mut colors = FlowerColorSet {
+        palette: day_palette,
+        center_color: day_center,
+        stem_color: day_stem,
+        leaf_color: day_leaf,
+        background: day_background,
+        center_highlight: CENTER_HIGHLIGHT,
+    };
+
+    if night {
+        colors = apply_night_to_color_set(colors);
+    }
+    if hdr {
+        colors = apply_hdr_to_color_set(colors);
+    }
+
+    colors
+}
+
+fn apply_night_to_color_set(colors: FlowerColorSet) -> FlowerColorSet {
+    FlowerColorSet {
+        palette: [
+            to_night_color(colors.palette[0], NightColorRole::Flower),
+            to_night_color(colors.palette[1], NightColorRole::Flower),
+            to_night_color(colors.palette[2], NightColorRole::Flower),
+        ],
+        center_color: to_night_color(colors.center_color, NightColorRole::Accent),
+        stem_color: to_night_color(colors.stem_color, NightColorRole::Stem),
+        leaf_color: to_night_color(colors.leaf_color, NightColorRole::Stem),
+        background: to_night_color(colors.background, NightColorRole::Background),
+        center_highlight: to_night_color(colors.center_highlight, NightColorRole::Accent),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum HdrColorRole {
+    Background,
+    Stem,
+    Flower,
+    Accent,
+}
+
+fn apply_hdr_to_color_set(colors: FlowerColorSet) -> FlowerColorSet {
+    FlowerColorSet {
+        palette: [
+            to_hdr_color(colors.palette[0], HdrColorRole::Flower),
+            to_hdr_color(colors.palette[1], HdrColorRole::Flower),
+            to_hdr_color(colors.palette[2], HdrColorRole::Flower),
+        ],
+        center_color: to_hdr_color(colors.center_color, HdrColorRole::Accent),
+        stem_color: to_hdr_color(colors.stem_color, HdrColorRole::Stem),
+        leaf_color: to_hdr_color(colors.leaf_color, HdrColorRole::Stem),
+        background: to_hdr_color(colors.background, HdrColorRole::Background),
+        center_highlight: to_hdr_color(colors.center_highlight, HdrColorRole::Accent),
+    }
+}
+
+fn to_hdr_color([r, g, b, a]: [u8; 4], role: HdrColorRole) -> [u8; 4] {
+    let (saturation, brightness) = match role {
+        HdrColorRole::Background => (1.12, 1.06),
+        HdrColorRole::Stem => (1.25, 1.08),
+        HdrColorRole::Flower => (1.40, 1.15),
+        HdrColorRole::Accent => (1.30, 1.22),
+    };
+
+    let rf = r as f32;
+    let gf = g as f32;
+    let bf = b as f32;
+    let gray = (rf + gf + bf) / 3.0;
+
+    let nr = (gray + (rf - gray) * saturation) * brightness;
+    let ng = (gray + (gf - gray) * saturation) * brightness;
+    let nb = (gray + (bf - gray) * saturation) * brightness;
+
+    [
+        nr.round().clamp(0.0, 255.0) as u8,
+        ng.round().clamp(0.0, 255.0) as u8,
+        nb.round().clamp(0.0, 255.0) as u8,
+        a,
+    ]
+}
+
+fn lerp_channel(a: u8, b: u8, t: f32) -> u8 {
+    (a as f32 * (1.0 - t) + b as f32 * t).round().clamp(0.0, 255.0) as u8
+}
+
+fn to_night_color([r, g, b, a]: [u8; 4], role: NightColorRole) -> [u8; 4] {
+    let (dark_scale, moon_mix) = match role {
+        NightColorRole::Background => (0.24, 0.45),
+        NightColorRole::Stem => (0.62, 0.10),
+        NightColorRole::Flower => (0.82, 0.06),
+        NightColorRole::Accent => (0.86, 0.05),
+    };
+
+    let dr = (r as f32 * dark_scale).round() as u8;
+    let dg = (g as f32 * dark_scale).round() as u8;
+    let db = (b as f32 * dark_scale).round() as u8;
+
+    let moon_r = lerp_channel(dr, 12, moon_mix);
+    let moon_g = lerp_channel(dg, 14, moon_mix);
+    let moon_b = lerp_channel(db, 30, moon_mix + 0.08);
+
+    [moon_r, moon_g, moon_b, a]
+}
+
 pub const FLOWER_VARIANT_COUNT: u8 = 5;
 pub const FLOWER_ANIMATION_FRAME_COUNT: usize = 8;
 pub const DEFAULT_FRAME_DELAY_MS: u32 = 250;
@@ -96,12 +235,19 @@ pub fn generate_flower_image(
     style: FlowerStyle,
     size: Option<u32>,
     variant: Option<u32>,
+    night: bool,
+    transparent: bool,
+    hdr: bool,
 ) -> GeneratedFlower {
     let output_size = normalize_flower_size(size);
     let pixel_scale = output_size / LOGICAL_SIZE as u32;
     let include_stem = style == FlowerStyle::FlowerWithStem;
-    let generated = generate_flower_pixels(seed, style, variant);
-    let mut image = RgbaImage::from_pixel(output_size, output_size, Rgba(generated.background));
+    let generated = generate_flower_pixels(seed, style, variant, night, hdr);
+    let mut image = RgbaImage::from_pixel(
+        output_size,
+        output_size,
+        canvas_pixel(generated.background, transparent),
+    );
 
     draw_pixels(&mut image, &generated.pixels, pixel_scale, 0, include_stem);
 
@@ -115,20 +261,23 @@ fn generate_flower_pixels(
     seed: &str,
     style: FlowerStyle,
     variant: Option<u32>,
+    night: bool,
+    hdr: bool,
 ) -> GeneratedFlowerPixels {
     let variant = normalize_flower_variant(variant);
     let include_stem = style == FlowerStyle::FlowerWithStem;
 
     let mut identity_rng = SeededRandom::new(seed);
+    let colors = pick_flower_colors(&mut identity_rng, night, hdr);
 
     let variation_seed = format!("{seed}:variant:{variant}");
     let mut shape_rng = SeededRandom::new(&variation_seed);
 
-    let palette = PETAL_PALETTES[identity_rng.index(PETAL_PALETTES.len())];
-    let center_color = CENTER_COLORS[identity_rng.index(CENTER_COLORS.len())];
-    let stem_color = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
-    let leaf_color = STEM_COLORS[identity_rng.index(STEM_COLORS.len())];
-    let background = BACKGROUNDS[identity_rng.index(BACKGROUNDS.len())];
+    let palette = colors.palette;
+    let center_color = colors.center_color;
+    let stem_color = colors.stem_color;
+    let leaf_color = colors.leaf_color;
+    let background = colors.background;
 
     let center_x = 8;
     let center_y = if include_stem {
@@ -197,7 +346,7 @@ fn generate_flower_pixels(
     pixels.add(center_x - 1, center_y - 1, center_color);
 
     if shape_rng.next_f64() > 0.4 {
-        pixels.add(center_x - 1, center_y - 1, CENTER_HIGHLIGHT);
+        pixels.add(center_x - 1, center_y - 1, colors.center_highlight);
     }
 
     if include_stem {
@@ -222,8 +371,11 @@ pub fn generate_flower_png(
     style: FlowerStyle,
     size: Option<u32>,
     variant: Option<u32>,
+    night: bool,
+    transparent: bool,
+    hdr: bool,
 ) -> Result<Vec<u8>, image::ImageError> {
-    let generated = generate_flower_image(seed, style, size, variant);
+    let generated = generate_flower_image(seed, style, size, variant, night, transparent, hdr);
     encode_png(&generated.image)
 }
 
@@ -232,12 +384,15 @@ pub fn generate_flower_animation_frames(
     style: FlowerStyle,
     size: Option<u32>,
     variant: Option<u32>,
+    night: bool,
+    transparent: bool,
+    hdr: bool,
 ) -> Vec<GeneratedFlower> {
     let output_size = normalize_flower_size(size);
     let pixel_scale = output_size / LOGICAL_SIZE as u32;
     let include_stem = style == FlowerStyle::FlowerWithStem;
 
-    let generated = generate_flower_pixels(seed, style, variant);
+    let generated = generate_flower_pixels(seed, style, variant, night, hdr);
 
     SWAY_FRAMES
         .iter()
@@ -245,7 +400,7 @@ pub fn generate_flower_animation_frames(
             let mut image = RgbaImage::from_pixel(
                 output_size,
                 output_size,
-                Rgba(generated.background),
+                canvas_pixel(generated.background, transparent),
             );
             draw_pixels(&mut image, &generated.pixels, pixel_scale, sway, include_stem);
 
@@ -263,8 +418,11 @@ pub fn generate_flower_gif(
     size: Option<u32>,
     variant: Option<u32>,
     frame_delay_ms: Option<u32>,
+    night: bool,
+    transparent: bool,
+    hdr: bool,
 ) -> Result<Vec<u8>, image::ImageError> {
-    let frames = generate_flower_animation_frames(seed, style, size, variant);
+    let frames = generate_flower_animation_frames(seed, style, size, variant, night, transparent, hdr);
     let delay_ms = frame_delay_ms.unwrap_or(DEFAULT_FRAME_DELAY_MS).max(20);
     let mut bytes = Vec::new();
 
@@ -562,27 +720,30 @@ mod tests {
 
     #[test]
     fn deterministic_for_same_seed_and_variant() {
-        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
-        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2), false, false, false).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2), false, false, false).unwrap();
         assert_eq!(a, b);
     }
 
     #[test]
     fn different_variants_produce_different_images() {
-        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(1)).unwrap();
-        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2)).unwrap();
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(1), false, false, false).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(2), false, false, false).unwrap();
         assert_ne!(a, b);
     }
 
     #[test]
     fn variants_wrap_correctly() {
         assert_eq!(
-            generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(0)).unwrap(),
+            generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, Some(0), false, false, false).unwrap(),
             generate_flower_png(
                 "user-1",
                 FlowerStyle::FlowerOnly,
                 None,
                 Some(FLOWER_VARIANT_COUNT as u32),
+                false,
+                false,
+                false,
             )
             .unwrap(),
         );
@@ -590,27 +751,27 @@ mod tests {
 
     #[test]
     fn background_is_seed_driven_not_variant_driven() {
-        let a = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(0));
-        let b = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(3));
+        let a = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(0), false, false, false);
+        let b = generate_flower_image("user-1", FlowerStyle::FlowerOnly, None, Some(3), false, false, false);
         assert_eq!(a.background, b.background);
     }
 
     #[test]
     fn output_is_32_by_32_by_default() {
         let generated =
-            generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None, None);
+            generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None, None, false, false, false);
         assert_eq!(generated.image.dimensions(), (32, 32));
     }
 
     #[test]
     fn output_respects_custom_size() {
-        let generated = generate_flower_image("user-1", FlowerStyle::FlowerOnly, Some(64), None);
+        let generated = generate_flower_image("user-1", FlowerStyle::FlowerOnly, Some(64), None, false, false, false);
         assert_eq!(generated.image.dimensions(), (64, 64));
     }
 
     #[test]
     fn output_is_a_png() {
-        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None).unwrap();
+        let bytes = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None, false, false, false).unwrap();
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
     }
 
@@ -619,10 +780,46 @@ mod tests {
         for variant in 0..FLOWER_VARIANT_COUNT {
             for style in [FlowerStyle::FlowerOnly, FlowerStyle::FlowerWithStem] {
                 let generated =
-                    generate_flower_image("user-1", style, None, Some(variant as u32));
+                    generate_flower_image("user-1", style, None, Some(variant as u32), false, false, false);
                 assert_eq!(generated.image.dimensions(), (32, 32));
             }
         }
+    }
+
+    #[test]
+    fn night_produces_different_colors_than_day() {
+        let day = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None, false, false, false).unwrap();
+        let night = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None, true, false, false).unwrap();
+        assert_ne!(day, night);
+    }
+
+    #[test]
+    fn night_is_deterministic() {
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerWithStem, None, Some(1), true, false, false).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerWithStem, None, Some(1), true, false, false).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn hdr_produces_different_colors_than_default() {
+        let normal = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None, false, false, false).unwrap();
+        let hdr = generate_flower_png("user-1", FlowerStyle::FlowerOnly, None, None, false, false, true).unwrap();
+        assert_ne!(normal, hdr);
+    }
+
+    #[test]
+    fn hdr_is_deterministic() {
+        let a = generate_flower_png("user-1", FlowerStyle::FlowerWithStem, None, Some(1), false, false, true).unwrap();
+        let b = generate_flower_png("user-1", FlowerStyle::FlowerWithStem, None, Some(1), false, false, true).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn transparent_background_has_zero_alpha() {
+        let generated =
+            generate_flower_image("user-1", FlowerStyle::FlowerWithStem, None, None, false, true, false);
+        assert_eq!(generated.image.get_pixel(0, 0)[3], 0);
+        assert!(generated.image.pixels().any(|pixel| pixel[3] == 255));
     }
 
     #[test]
@@ -632,6 +829,9 @@ mod tests {
             FlowerStyle::FlowerWithStem,
             Some(64),
             Some(2),
+            false,
+            false,
+            false,
         );
 
         assert_eq!(frames.len(), FLOWER_ANIMATION_FRAME_COUNT);
@@ -645,12 +845,18 @@ mod tests {
             FlowerStyle::FlowerWithStem,
             None,
             Some(2),
+            false,
+            false,
+            false,
         );
         let b = generate_flower_animation_frames(
             "user-1",
             FlowerStyle::FlowerWithStem,
             None,
             Some(2),
+            false,
+            false,
+            false,
         );
 
         assert_eq!(a.len(), b.len());
