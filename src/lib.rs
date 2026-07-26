@@ -14,9 +14,74 @@ use worker::*;
 
 fn cache_headers() -> Headers {
     let h = Headers::new();
-    h.set("Cache-Control", "public, immutable, no-transform, max-age=31536000")
+    h.set("Cache-Control", "public, max-age=31536000, immutable, no-transform")
         .unwrap();
     h
+}
+
+fn fingerprint_etag(value: &str) -> String {
+    let mut hash = 2_166_136_261_u32;
+
+    for unit in value.encode_utf16() {
+        hash ^= unit as u32;
+        hash = hash.wrapping_mul(16_777_619);
+    }
+
+    format!("\"{hash:x}\"")
+}
+
+fn if_none_match(req: &Request, etag: &str) -> bool {
+    match req.headers().get("If-None-Match") {
+        Ok(Some(header)) => header
+            .split(',')
+            .map(str::trim)
+            .any(|candidate| candidate == etag || candidate == "*"),
+        _ => false,
+    }
+}
+
+fn not_modified_response(etag: &str) -> Result<Response> {
+    let h = cache_headers();
+    h.set("ETag", etag).unwrap();
+    Ok(Response::empty()?.with_status(304).with_headers(h))
+}
+
+fn cached_image_response(bytes: Vec<u8>, content_type: &str, etag: &str) -> Result<Response> {
+    let h = cache_headers();
+    h.set("Content-Type", content_type).unwrap();
+    h.set("ETag", etag).unwrap();
+    Ok(Response::from_bytes(bytes)?.with_headers(h))
+}
+
+fn flower_cache_fingerprint(
+    name: &str,
+    style: FlowerStyle,
+    size: Option<u32>,
+    variant: Option<u32>,
+    animate: bool,
+    delay: Option<u32>,
+    night: bool,
+    transparent: bool,
+    hdr: bool,
+) -> String {
+    let stem = if style == FlowerStyle::FlowerWithStem {
+        "on"
+    } else {
+        "off"
+    };
+    let size = size
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "default".into());
+    let variant = variant
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "0".into());
+    let delay = delay
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "default".into());
+
+    format!(
+        "flower:v1|{name}|stem={stem}|size={size}|variant={variant}|animate={animate}|delay={delay}|night={night}|transparent={transparent}|hdr={hdr}"
+    )
 }
 
 #[event(fetch, respond_with_errors)]
@@ -70,6 +135,15 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let transparent = query.get("transparent").is_some_and(|s| s == "on");
             let hdr = query.get("hdr").is_some_and(|s| s == "on");
 
+            let fingerprint = flower_cache_fingerprint(
+                name, style, size, variant, animate, delay, night, transparent, hdr,
+            );
+            let etag = fingerprint_etag(&fingerprint);
+
+            if if_none_match(&req, &etag) {
+                return not_modified_response(&etag);
+            }
+
             let result = if animate {
                 generate_flower_gif(name, style, size, variant, delay, night, transparent, hdr)
             } else {
@@ -78,14 +152,12 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             match result {
                 Ok(bytes) => {
-                    let h = cache_headers();
                     let content_type = if animate {
                         "image/gif"
                     } else {
                         "image/png"
                     };
-                    h.set("Content-Type", content_type).unwrap();
-                    Ok(Response::from_bytes(bytes)?.with_headers(h))
+                    cached_image_response(bytes, content_type, &etag)
                 }
                 Err(_) => Response::error("Internal error", 500),
             }
