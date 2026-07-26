@@ -1,6 +1,9 @@
 use image::{
-    codecs::png::PngEncoder,
-    ExtendedColorType, ImageEncoder, Rgba, RgbaImage,
+    codecs::{
+        gif::{GifEncoder, Repeat},
+        png::PngEncoder,
+    },
+    Delay, ExtendedColorType, Frame, ImageEncoder, Rgba, RgbaImage,
 };
 use std::collections::HashMap;
 
@@ -62,6 +65,10 @@ const PETAL_SHAPE: [(i32, i32); 14] = [
 const CENTER_HIGHLIGHT: [u8; 4] = rgba(0xff, 0xf3, 0xa3);
 
 pub const FLOWER_VARIANT_COUNT: u8 = 5;
+pub const FLOWER_ANIMATION_FRAME_COUNT: usize = 8;
+pub const DEFAULT_FRAME_DELAY_MS: u32 = 250;
+
+const SWAY_FRAMES: [i32; FLOWER_ANIMATION_FRAME_COUNT] = [-2, -1, 0, 1, 2, 1, 0, -1];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlowerStyle {
@@ -92,18 +99,28 @@ pub fn generate_flower_image(
 ) -> GeneratedFlower {
     let output_size = normalize_flower_size(size);
     let pixel_scale = output_size / LOGICAL_SIZE as u32;
+    let include_stem = style == FlowerStyle::FlowerWithStem;
+    let generated = generate_flower_pixels(seed, style, variant);
+    let mut image = RgbaImage::from_pixel(output_size, output_size, Rgba(generated.background));
+
+    draw_pixels(&mut image, &generated.pixels, pixel_scale, 0, include_stem);
+
+    GeneratedFlower {
+        image,
+        background: generated.background,
+    }
+}
+
+fn generate_flower_pixels(
+    seed: &str,
+    style: FlowerStyle,
+    variant: Option<u32>,
+) -> GeneratedFlowerPixels {
     let variant = normalize_flower_variant(variant);
     let include_stem = style == FlowerStyle::FlowerWithStem;
 
-    // Identity properties stay the same for every variation of a seed.
-    // This preserves the flower's palette and background while allowing its
-    // actual silhouette and details to change.
     let mut identity_rng = SeededRandom::new(seed);
 
-    // The React generator effectively generated another deterministic flower
-    // from the same identity. Treat `variant` as a seed salt for every
-    // structural/random shape decision rather than using it only to append a
-    // handful of pixels to an otherwise identical flower.
     let variation_seed = format!("{seed}:variant:{variant}");
     let mut shape_rng = SeededRandom::new(&variation_seed);
 
@@ -123,9 +140,6 @@ pub fn generate_flower_image(
 
     let mut pixels = PixelGrid::default();
 
-    // Base-petal shading and shape details must use the variant-specific RNG.
-    // Previously these used identity_rng, which meant every variant started
-    // with the exact same blossom and only differed by a few added pixels.
     for &(offset_x, offset_y) in &PETAL_SHAPE {
         let distance = offset_x.abs() + offset_y.abs();
         let color = if distance >= 4 {
@@ -153,10 +167,6 @@ pub fn generate_flower_image(
     }
 
     if !include_stem {
-        // Match the React implementation: the flower-only version chooses a
-        // seeded blossom archetype. The query variant changes the RNG stream;
-        // it does not directly map variant=0 to shape=0, variant=1 to shape=1.
-        // This gives each variant a more complete, natural redesign.
         let blossom_variant = shape_rng.index(FLOWER_VARIANT_COUNT as usize) as u8;
         add_flower_variant(
             &mut pixels,
@@ -191,8 +201,6 @@ pub fn generate_flower_image(
     }
 
     if include_stem {
-        // The stem, lean, and leaves also vary for the same seed when a
-        // different query variant is requested.
         add_stem(
             &mut pixels,
             &mut shape_rng,
@@ -206,20 +214,7 @@ pub fn generate_flower_image(
         pixels.recenter();
     }
 
-    let mut image = RgbaImage::from_pixel(output_size, output_size, Rgba(background));
-
-    for ((x, y), color) in pixels.items {
-        let start_x = x as u32 * pixel_scale;
-        let start_y = y as u32 * pixel_scale;
-
-        for dy in 0..pixel_scale {
-            for dx in 0..pixel_scale {
-                image.put_pixel(start_x + dx, start_y + dy, Rgba(color));
-            }
-        }
-    }
-
-    GeneratedFlower { image, background }
+    GeneratedFlowerPixels { pixels, background }
 }
 
 pub fn generate_flower_png(
@@ -230,6 +225,60 @@ pub fn generate_flower_png(
 ) -> Result<Vec<u8>, image::ImageError> {
     let generated = generate_flower_image(seed, style, size, variant);
     encode_png(&generated.image)
+}
+
+pub fn generate_flower_animation_frames(
+    seed: &str,
+    style: FlowerStyle,
+    size: Option<u32>,
+    variant: Option<u32>,
+) -> Vec<GeneratedFlower> {
+    let output_size = normalize_flower_size(size);
+    let pixel_scale = output_size / LOGICAL_SIZE as u32;
+    let include_stem = style == FlowerStyle::FlowerWithStem;
+
+    let generated = generate_flower_pixels(seed, style, variant);
+
+    SWAY_FRAMES
+        .iter()
+        .map(|&sway| {
+            let mut image = RgbaImage::from_pixel(
+                output_size,
+                output_size,
+                Rgba(generated.background),
+            );
+            draw_pixels(&mut image, &generated.pixels, pixel_scale, sway, include_stem);
+
+            GeneratedFlower {
+                image,
+                background: generated.background,
+            }
+        })
+        .collect()
+}
+
+pub fn generate_flower_gif(
+    seed: &str,
+    style: FlowerStyle,
+    size: Option<u32>,
+    variant: Option<u32>,
+    frame_delay_ms: Option<u32>,
+) -> Result<Vec<u8>, image::ImageError> {
+    let frames = generate_flower_animation_frames(seed, style, size, variant);
+    let delay_ms = frame_delay_ms.unwrap_or(DEFAULT_FRAME_DELAY_MS).max(20);
+    let mut bytes = Vec::new();
+
+    {
+        let mut encoder = GifEncoder::new(&mut bytes);
+        encoder.set_repeat(Repeat::Infinite)?;
+
+        for generated in frames {
+            let delay = Delay::from_numer_denom_ms(delay_ms, 1);
+            encoder.encode_frame(Frame::from_parts(generated.image, 0, 0, delay))?;
+        }
+    }
+
+    Ok(bytes)
 }
 
 pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, image::ImageError> {
@@ -309,40 +358,58 @@ fn add_stem(
         if y > center_y + 4 && random.next_f64() > 0.72 {
             stem_x = (stem_x + stem_lean).clamp(6, 9);
         }
-        pixels.add(stem_x, y, stem_color);
+        pixels.add_part(stem_x, y, stem_color, PixelPart::Stem);
     }
 
     let leaf_y = center_y + 5 + random.index(3) as i32;
     let leaf_direction = if random.next_f64() > 0.5 { 1 } else { -1 };
 
-    pixels.add(stem_x + leaf_direction, leaf_y, leaf_color);
-    pixels.add(stem_x + leaf_direction * 2, leaf_y - 1, leaf_color);
-    pixels.add(stem_x + leaf_direction * 2, leaf_y, leaf_color);
+    pixels.add_part(stem_x + leaf_direction, leaf_y, leaf_color, PixelPart::Stem);
+    pixels.add_part(stem_x + leaf_direction * 2, leaf_y - 1, leaf_color, PixelPart::Stem);
+    pixels.add_part(stem_x + leaf_direction * 2, leaf_y, leaf_color, PixelPart::Stem);
 
     if random.next_f64() > 0.45 {
         let opposite_y = (leaf_y + 2).min(13);
-        pixels.add(stem_x - leaf_direction, opposite_y, leaf_color);
-        pixels.add(
+        pixels.add_part(stem_x - leaf_direction, opposite_y, leaf_color, PixelPart::Stem);
+        pixels.add_part(
             stem_x - leaf_direction * 2,
             opposite_y - 1,
             leaf_color,
+            PixelPart::Stem,
         );
     }
 
-    pixels.add(stem_x - 1, 15, stem_color);
-    pixels.add(stem_x, 15, stem_color);
-    pixels.add(stem_x + 1, 15, stem_color);
+    pixels.add_part(stem_x - 1, 15, stem_color, PixelPart::Base);
+    pixels.add_part(stem_x, 15, stem_color, PixelPart::Base);
+    pixels.add_part(stem_x + 1, 15, stem_color, PixelPart::Base);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PixelPart {
+    Flower,
+    Stem,
+    Base,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Pixel {
+    color: [u8; 4],
+    part: PixelPart,
 }
 
 #[derive(Default)]
 struct PixelGrid {
-    items: HashMap<(i32, i32), [u8; 4]>,
+    items: HashMap<(i32, i32), Pixel>,
 }
 
 impl PixelGrid {
     fn add(&mut self, x: i32, y: i32, color: [u8; 4]) {
+        self.add_part(x, y, color, PixelPart::Flower);
+    }
+
+    fn add_part(&mut self, x: i32, y: i32, color: [u8; 4], part: PixelPart) {
         if (0..LOGICAL_SIZE).contains(&x) && (0..LOGICAL_SIZE).contains(&y) {
-            self.items.insert((x, y), color);
+            self.items.insert((x, y), Pixel { color, part });
         }
     }
 
@@ -380,12 +447,60 @@ impl PixelGrid {
 
         let old = std::mem::take(&mut self.items);
 
-        for ((x, y), color) in old {
-            self.add(
-                (x + dx).clamp(0, LOGICAL_SIZE - 1),
-                (y + dy).clamp(0, LOGICAL_SIZE - 1),
-                color,
-            );
+        for ((x, y), pixel) in old {
+            let new_x = (x + dx).clamp(0, LOGICAL_SIZE - 1);
+            let new_y = (y + dy).clamp(0, LOGICAL_SIZE - 1);
+            self.items.insert((new_x, new_y), pixel);
+        }
+    }
+}
+
+struct GeneratedFlowerPixels {
+    pixels: PixelGrid,
+    background: [u8; 4],
+}
+
+fn transform_pixel(x: i32, y: i32, part: PixelPart, sway: i32, include_stem: bool) -> (i32, i32) {
+    if !include_stem {
+        return (x + round_js(sway as f64 * 0.35), y);
+    }
+
+    let flower_shift_x = sway;
+    let flower_shift_y = if sway.abs() == 2 { 1 } else { 0 };
+
+    match part {
+        PixelPart::Flower => (x + flower_shift_x, y + flower_shift_y),
+        PixelPart::Stem => {
+            let progress = ((15 - y) as f64 / 6.0).clamp(0.0, 1.0);
+            (
+                x + round_js(flower_shift_x as f64 * progress),
+                y + round_js(flower_shift_y as f64 * progress),
+            )
+        }
+        PixelPart::Base => (x, y),
+    }
+}
+
+fn draw_pixels(
+    image: &mut RgbaImage,
+    pixels: &PixelGrid,
+    pixel_scale: u32,
+    sway: i32,
+    include_stem: bool,
+) {
+    for (&(x, y), pixel) in &pixels.items {
+        let (x, y) = transform_pixel(x, y, pixel.part, sway, include_stem);
+        if !(0..LOGICAL_SIZE).contains(&x) || !(0..LOGICAL_SIZE).contains(&y) {
+            continue;
+        }
+
+        let start_x = x as u32 * pixel_scale;
+        let start_y = y as u32 * pixel_scale;
+
+        for dy in 0..pixel_scale {
+            for dx in 0..pixel_scale {
+                image.put_pixel(start_x + dx, start_y + dy, Rgba(pixel.color));
+            }
         }
     }
 }
@@ -507,6 +622,40 @@ mod tests {
                     generate_flower_image("user-1", style, None, Some(variant as u32));
                 assert_eq!(generated.image.dimensions(), (32, 32));
             }
+        }
+    }
+
+    #[test]
+    fn animation_has_expected_frame_count_and_size() {
+        let frames = generate_flower_animation_frames(
+            "user-1",
+            FlowerStyle::FlowerWithStem,
+            Some(64),
+            Some(2),
+        );
+
+        assert_eq!(frames.len(), FLOWER_ANIMATION_FRAME_COUNT);
+        assert!(frames.iter().all(|frame| frame.image.dimensions() == (64, 64)));
+    }
+
+    #[test]
+    fn animation_is_deterministic() {
+        let a = generate_flower_animation_frames(
+            "user-1",
+            FlowerStyle::FlowerWithStem,
+            None,
+            Some(2),
+        );
+        let b = generate_flower_animation_frames(
+            "user-1",
+            FlowerStyle::FlowerWithStem,
+            None,
+            Some(2),
+        );
+
+        assert_eq!(a.len(), b.len());
+        for (left, right) in a.iter().zip(&b) {
+            assert_eq!(left.image, right.image);
         }
     }
 }

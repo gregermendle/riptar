@@ -1,6 +1,6 @@
 mod flower;
 
-use flower::{generate_flower_png, FlowerStyle};
+use flower::{generate_flower_gif, generate_flower_png, FlowerStyle};
 use image::{imageops::FilterType, GrayImage, ImageFormat, Luma};
 use resvg::{
     tiny_skia::Pixmap,
@@ -64,11 +64,24 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             };
             let size = query.get("size").and_then(|s| s.parse::<u32>().ok());
             let variant = query.get("variant").and_then(|s| s.parse::<u32>().ok());
+            let format = query.get("format");
+            let delay = query.get("delay").and_then(|s| s.parse::<u32>().ok());
 
-            match generate_flower_png(name, style, size, variant) {
+            let result = if format.is_some_and(|s| s == "gif") {
+                generate_flower_gif(name, style, size, variant, delay)
+            } else {
+                generate_flower_png(name, style, size, variant)
+            };
+
+            match result {
                 Ok(bytes) => {
                     let h = cache_headers();
-                    h.set("Content-Type", "image/png").unwrap();
+                    let content_type = if format.is_some_and(|s| s == "gif") {
+                        "image/gif"
+                    } else {
+                        "image/png"
+                    };
+                    h.set("Content-Type", content_type).unwrap();
                     Ok(Response::from_bytes(bytes)?.with_headers(h))
                 }
                 Err(_) => Response::error("Internal error", 500),
