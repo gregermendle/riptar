@@ -1,5 +1,7 @@
+mod annoying;
 mod flower;
 
+use annoying::annoying_from_bytes;
 use flower::{generate_flower_gif, generate_flower_png, FlowerStyle};
 use image::{imageops::FilterType, GrayImage, ImageFormat, Luma};
 use resvg::{
@@ -105,6 +107,36 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                             let h = cache_headers();
                             h.set("Content-Type", "image/png").unwrap();
                             return Ok(Response::from_bytes(dithered)?
+                                .with_headers(h));
+                        }
+                        Err(_) => return Response::error("Internal error", 500),
+                    },
+                    Err(_) => return Response::error("Internal error", 500),
+                }
+            }
+            Response::error("Bad request", 400)
+        })
+        .get_async("/annoying", |req, _ctx| async move {
+            let url = req.url()?;
+            let query: HashMap<String, String> =
+                url.query_pairs().into_owned().collect();
+            let url_param = query.get("url");
+            let width = query.get("width").and_then(|s| s.parse::<u32>().ok());
+            let height = query.get("height").and_then(|s| s.parse::<u32>().ok());
+            let amount = query
+                .get("amount")
+                .and_then(|s| s.parse::<f64>().ok())
+                .map(|v| if v > 1.0 { v / 100.0 } else { v })
+                .unwrap_or(1.0);
+
+            if let Some(image_url) = url_param {
+                let bytes = get_image_bytes(image_url).await;
+                match bytes {
+                    Ok(bytes) => match annoying_from_bytes(&bytes, width, height, amount) {
+                        Ok(processed) => {
+                            let h = cache_headers();
+                            h.set("Content-Type", "image/png").unwrap();
+                            return Ok(Response::from_bytes(processed)?
                                 .with_headers(h));
                         }
                         Err(_) => return Response::error("Internal error", 500),
